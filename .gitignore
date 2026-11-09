@@ -1,0 +1,12 @@
+.env
+certs/**/*.crt
+certs/**/*.key
+certs/**/*.srl
+certs/ca/
+publicacao/vinheria/atual/*
+publicacao/vinheria/releases/*
+!publicacao/vinheria/atual/.gitkeep
+!publicacao/vinheria/releases/.gitkeep
+dist/
+__pycache__/
+*.pyc

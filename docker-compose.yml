@@ -1,0 +1,89 @@
+# Vinheria Agnello — infraestrutura simulada (DNS/DHCP, 2 microsserviços, publicação)
+name: vinheria
+
+networks:
+  rede_vinheria:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+          ip_range: 172.28.0.0/26     # IPs fixos e automáticos do Docker (.1 a .62)
+          gateway: 172.28.0.1          # DHCP da loja usa .100 a .150
+
+services:
+  pki:                                  # gera CA e certificados na primeira execução
+    image: alpine:3.20
+    volumes:
+      - ./infra/pki:/pki:ro
+      - ./certs:/certs
+    command: ["sh", "-c", "apk add --no-cache openssl >/dev/null && sh /pki/gerar_certificados.sh /certs"]
+    restart: "no"
+
+  dns-dhcp:
+    build: ./infra/dns-dhcp
+    cap_add: [NET_ADMIN]
+    networks:
+      rede_vinheria:
+        ipv4_address: 172.28.0.2
+    restart: unless-stopped
+
+  ms-estoque:                           # sem porta publicada: acessível só na rede interna
+    build:
+      context: .
+      dockerfile: services/ms-estoque/Dockerfile
+    env_file: .env
+    environment:
+      PORTA_HTTPS: "8443"
+    volumes:
+      - ./certs/estoque:/certs:ro
+    dns: [172.28.0.2]
+    networks:
+      rede_vinheria:
+        ipv4_address: 172.28.0.12
+    depends_on:
+      pki: { condition: service_completed_successfully }
+      dns-dhcp: { condition: service_started }
+    restart: unless-stopped
+
+  ms-catalogo:
+    build:
+      context: .
+      dockerfile: services/ms-catalogo/Dockerfile
+    env_file: .env
+    environment:
+      PORTA_HTTPS: "8443"
+      PORTA_HTTP: "8001"
+      PERMITIR_HTTP: ${PERMITIR_HTTP:-nao}
+      ESTOQUE_URL: https://estoque.vinheria.internal:8443
+    volumes:
+      - ./certs/catalogo:/certs:ro
+    ports:
+      - "8443:8443"                     # HTTPS (padrão)
+      - "8001:8001"                     # HTTP só responde com PERMITIR_HTTP=sim
+    dns: [172.28.0.2]
+    networks:
+      rede_vinheria:
+        ipv4_address: 172.28.0.11
+    depends_on:
+      ms-estoque: { condition: service_started }
+    restart: unless-stopped
+
+  publicacao:                           # simula o servidor de produção (papel do IIS)
+    image: nginx:1.27-alpine
+    volumes:
+      - ./publicacao/vinheria/atual:/usr/share/nginx/html:ro
+    ports:
+      - "8088:80"
+    networks:
+      rede_vinheria:
+        ipv4_address: 172.28.0.20
+    restart: unless-stopped
+
+  estacao-loja:                         # estação de trabalho que recebe IP por DHCP
+    build: ./infra/estacao
+    volumes:
+      - ./certs/publico:/certs:ro
+    dns: [172.28.0.2]
+    networks: [rede_vinheria]
+    depends_on:
+      dns-dhcp: { condition: service_started }

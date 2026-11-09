@@ -1,0 +1,15 @@
+# Jenkins para o pipeline de deploy da Vinheria Agnello
+name: vinheria-ci
+
+services:
+  jenkins:
+    build: ./jenkins
+    ports:
+      - "8080:8080"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./publicacao:/publicacao        # pasta de publicação (mesma servida pelo nginx)
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:

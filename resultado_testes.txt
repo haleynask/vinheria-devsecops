@@ -1,0 +1,120 @@
+
+==== 1. DNS: nomes dos serviços resolvidos pelo servidor 172.28.0.2 ====
+Server:		172.28.0.2
+Address:	172.28.0.2#53
+
+Name:	catalogo.vinheria.internal
+Address: 172.28.0.11
+
+Server:		172.28.0.2
+Address:	172.28.0.2#53
+
+Name:	estoque.vinheria.internal
+Address: 172.28.0.12
+
+
+==== 2. DHCP: concessão recebida pela estação da loja ====
+DHCP: concessão recebida do servidor 172.28.0.2
+  endereço  : 172.28.0.139/24
+  gateway   : 172.28.0.1
+  DNS       : 172.28.0.2
+  domínio   : vinheria.internal
+  validade  : 43200s
+udhcpc: started, v1.36.1
+--
+DHCP: concessão recebida do servidor 172.28.0.2
+  endereço  : 172.28.0.105/24
+  gateway   : 172.28.0.1
+  DNS       : 172.28.0.2
+  domínio   : vinheria.internal
+  validade  : 43200s
+dnsmasq-dhcp[1]: 1442956072 DHCPDISCOVER(eth0) ba:13:fd:27:d0:bf 
+dnsmasq-dhcp[1]: 1442956072 DHCPOFFER(eth0) 172.28.0.105 ba:13:fd:27:d0:bf 
+dnsmasq-dhcp[1]: 1442956072 DHCPREQUEST(eth0) 172.28.0.105 ba:13:fd:27:d0:bf 
+dnsmasq-dhcp[1]: 1442956072 DHCPACK(eth0) 172.28.0.105 ba:13:fd:27:d0:bf 
+
+==== 3. Sem token: acesso negado ====
+{
+  "erro": "token ausente"
+}
+HTTP 401
+
+==== 4. Senha errada: token negado ====
+{
+  "erro": "credenciais inválidas"
+}
+HTTP 401
+
+==== 5. Login correto: JWT emitido ====
+token (início): eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ...
+
+==== 6. Com token: catálogo + estoque (ms-catalogo -> ms-estoque por mTLS) ====
+[
+  {
+    "sku": "VA-0001",
+    "nome": "Catena Malbec 2021",
+    "tipo": "Tinto",
+    "pais": "Argentina",
+    "preco": 189.0,
+    "quantidade": 36
+  },
+  {
+    "sku": "VA-0002",
+    "nome": "Cloudy Bay Sauvignon Blanc 2023",
+    "tipo": "Branco",
+    "pais": "Nova Zelândia",
+    "preco": 329.0,
+    "quantidade": 24
+  },
+  {
+    "sku": "VA-0003",
+    "nome": "Dom Pérignon 2013",
+    "tipo": "Espumante",
+    "pais": "França",
+    "preco": 2490.0,
+    "quantidade": 3
+  },
+  {
+    "sku": "VA-0004",
+    "nome": "Quinta do Crasto Reserva 2020",
+    "tipo": "Tinto",
+    "pais": "Portugal",
+    "preco": 459.0,
+    "quantidade": 12
+  },
+  {
+    "sku": "VA-0006",
+    "nome": "Barca Velha 2015",
+    "tipo": "Tinto",
+    "pais": "Portugal",
+    "preco": 5900.0,
+    "quantidade": 3
+  }
+]
+HTTP 200
+
+==== 7. Token adulterado: assinatura não confere ====
+{
+  "erro": "assinatura inválida"
+}
+HTTP 401
+
+==== 8. ms-estoque recusa conexão sem certificado de cliente (mTLS) ====
+HTTP 000
+conexão recusada pelo ms-estoque (esperado)
+
+==== 9. ms-estoque não é acessível de fora da rede interna ====
+nenhuma porta do ms-estoque publicada no computador (esperado)
+
+==== 10. Registro dos serviços (o token nunca aparece no log) ====
+2026-11-09 21:30:31 ms-catalogo [https] GET /v1/vinhos 401 sub=-
+2026-11-09 21:30:38 ms-catalogo [https] GET /v1/vinhos 401 sub=-
+2026-11-09 21:30:38 ms-catalogo [https] POST /v1/auth/token 401 sub=-
+2026-11-09 21:30:38 ms-catalogo [https] POST /v1/auth/token 200 sub=sommelier
+2026-11-09 21:30:38 ms-catalogo [https] GET /v1/vinhos 200 sub=sommelier
+2026-11-09 21:30:38 ms-catalogo [https] GET /v1/vinhos 401 sub=-
+ms-estoque ouvindo em HTTPS :8443 (mTLS obrigatório)
+2026-11-09 21:30:00 ms-estoque GET /v1/estoque 200 sub=ms-catalogo
+2026-11-09 21:30:11 ms-estoque GET /v1/estoque 200 sub=ms-catalogo
+2026-11-09 21:30:31 ms-estoque GET /v1/estoque 200 sub=ms-catalogo
+2026-11-09 21:30:38 ms-estoque GET /v1/estoque 200 sub=ms-catalogo
